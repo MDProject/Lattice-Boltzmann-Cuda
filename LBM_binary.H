@@ -8,11 +8,12 @@
 #include "AMReX_FileIO.H"
 #include "Debug.H"
 
+const IntVect print_grid(0, 0, 0); // grid to print out
 
 AMREX_GPU_MANAGED unsigned long long seed = 12345ULL;  // A fixed seed for reproducibility in each independent CUDA program;
 AMREX_GPU_MANAGED Real tau_f = 1./2.; // tau=0.5*(1.+1./sqrt(3.)) minimizes spurious currents according to Swift et al.
 AMREX_GPU_MANAGED Real tau_g = 1./2.;
-AMREX_GPU_MANAGED Real alpha0 = 0.;//0.8;//0.95; also = \mathcal{G} in paper;
+AMREX_GPU_MANAGED Real alpha0 = 0.8;//0.95; also = \mathcal{G} in paper;
 AMREX_GPU_MANAGED Real alpha1 = 0.;//alpha1;
 const Real epsilon = 1e-14;
 
@@ -156,6 +157,7 @@ RealVect gradient(int x, int y, int z, const Array4<Real>& field, int icomp) {
     For D3Q19, \nabla_\alpha [field] = 1/cs^2*\sum_i *w_i n(r+e_i\Delta t)e_{i\alpha}
     */
   }
+
   return gradient;
 }
 
@@ -235,6 +237,18 @@ void hydrovars(int x, int y, int z, // real density & momentum;
     grad_laplacian_2nd(x,y,z,hbar,0),
     grad_laplacian_2nd(x,y,z,hbar,1),
   };
+
+  if(x==print_grid[0] && y==print_grid[1] && z==print_grid[2]) {
+    printf("populations after streaming in hydrovars() = \n");
+    for(int i=0; i<nvel; ++i) {
+      printf("hydro_f(%d) = %.8f\t", i, f(x,y,z,i));
+      printf("hydro_g(%d) = %.8f\t", i, g(x,y,z,i));
+    }
+    printf("\ndensity after streaming in hydrovars() = \n");
+    printf("hydro_h(%d) = %.8f\t", 0, h(x,y,z,0));
+    printf("hydro_h(%d) = %.8f\t", 1, h(x,y,z,1));
+    printf("\n");
+  }
   const Array1D<RealVect,0,2> grad = {
     gradient(x,y,z,hbar,0),
     gradient(x,y,z,hbar,1),
@@ -253,13 +267,13 @@ void hydrovars(int x, int y, int z, // real density & momentum;
     agbar(k) = -cs2*(alpha0*grad_rho[k] + alpha1*grad_laplacian_rho[k]); // 12~14
   }
   // **********************   WITHOUT NOISE TERM   **********************;
-  h(x,y,z,2) = ufbar(0) + 0.5*afbar(0) + 0.5/(tau_f+0.5)*phi/(rho+phi)*(ufbar(0)-ugbar(0) + 0.5*(afbar(0)-agbar(0))) + 0.5*nf(x,y,z,1)/std::abs(rho);//*equivDensityInv(rho); 
-  h(x,y,z,3) = ufbar(1) + 0.5*afbar(1) + 0.5/(tau_f+0.5)*phi/(rho+phi)*(ufbar(1)-ugbar(1) + 0.5*(afbar(1)-agbar(1))) + 0.5*nf(x,y,z,2)/std::abs(rho);//*equivDensityInv(rho);
-  h(x,y,z,4) = ufbar(2) + 0.5*afbar(2) + 0.5/(tau_f+0.5)*phi/(rho+phi)*(ufbar(2)-ugbar(2) + 0.5*(afbar(2)-agbar(2))) + 0.5*nf(x,y,z,3)/std::abs(rho);//*equivDensityInv(rho);
+  h(x,y,z,2) = ufbar(0) + 0.5*afbar(0) - 0.5/(tau_f+0.5)*phi/(rho+phi)*(ufbar(0)-ugbar(0) + 0.5*(afbar(0)-agbar(0))) + 0.5*nf(x,y,z,1)/std::abs(rho);//*equivDensityInv(rho); 
+  h(x,y,z,3) = ufbar(1) + 0.5*afbar(1) - 0.5/(tau_f+0.5)*phi/(rho+phi)*(ufbar(1)-ugbar(1) + 0.5*(afbar(1)-agbar(1))) + 0.5*nf(x,y,z,2)/std::abs(rho);//*equivDensityInv(rho);
+  h(x,y,z,4) = ufbar(2) + 0.5*afbar(2) - 0.5/(tau_f+0.5)*phi/(rho+phi)*(ufbar(2)-ugbar(2) + 0.5*(afbar(2)-agbar(2))) + 0.5*nf(x,y,z,3)/std::abs(rho);//*equivDensityInv(rho);
 
-  h(x,y,z,6) = ugbar(0) + 0.5*agbar(0) + 0.5/(tau_g+0.5)*rho/(rho+phi)*(ugbar(0)-ufbar(0) + 0.5*(agbar(0)-afbar(0))) + 0.5*ng(x,y,z,1)/std::abs(phi);//*equivDensityInv(phi);
-  h(x,y,z,7) = ugbar(1) + 0.5*agbar(1) + 0.5/(tau_g+0.5)*rho/(rho+phi)*(ugbar(1)-ufbar(1) + 0.5*(agbar(1)-afbar(1))) + 0.5*ng(x,y,z,2)/std::abs(phi);//*equivDensityInv(phi);
-  h(x,y,z,8) = ugbar(2) + 0.5*agbar(2) + 0.5/(tau_g+0.5)*rho/(rho+phi)*(ugbar(2)-ufbar(2) + 0.5*(agbar(2)-afbar(2))) + 0.5*ng(x,y,z,3)/std::abs(phi);//*equivDensityInv(phi);
+  h(x,y,z,6) = ugbar(0) + 0.5*agbar(0) - 0.5/(tau_g+0.5)*rho/(rho+phi)*(ugbar(0)-ufbar(0) + 0.5*(agbar(0)-afbar(0))) + 0.5*ng(x,y,z,1)/std::abs(phi);//*equivDensityInv(phi);
+  h(x,y,z,7) = ugbar(1) + 0.5*agbar(1) - 0.5/(tau_g+0.5)*rho/(rho+phi)*(ugbar(1)-ufbar(1) + 0.5*(agbar(1)-afbar(1))) + 0.5*ng(x,y,z,2)/std::abs(phi);//*equivDensityInv(phi);
+  h(x,y,z,8) = ugbar(2) + 0.5*agbar(2) - 0.5/(tau_g+0.5)*rho/(rho+phi)*(ugbar(2)-ufbar(2) + 0.5*(agbar(2)-afbar(2))) + 0.5*ng(x,y,z,3)/std::abs(phi);//*equivDensityInv(phi);
 
   h(x,y,z,5) = rho + phi;  // total density;
 
@@ -308,6 +322,7 @@ void hydrovars_bar_density(int x, int y, int z,
   //for test only;
   const Array1D<Real,0,nvel> mf = moments(x,y,z,f);
   const Array1D<Real,0,nvel> mg = moments(x,y,z,g);
+  
   for (int i=1; i<=AMREX_SPACEDIM; ++i) {     // momentum/velocity i=1..3
     hb(x,y,z,i+1) = mf(i)/mf(0);               // u_f to be stored in 2..4
     hb(x,y,z,i+1+AMREX_SPACEDIM) = mg(i)/mg(0);// u_g to be stored in 5..7
@@ -436,7 +451,7 @@ Array1D<Real,0,nvel> Phif_equilibrium_moments(const Array1D<Real,0,2>& fields,
   const Real rho = fields(0);
 
   const Real coefA = rho;
-  const Real coefB = 0.;
+  const Real coefB = 0.; 
   const Real coefAB = coefA*coefB;
   const Real coefC = 1./cs2;
   const Real coefAC = coefA*coefC;
@@ -455,12 +470,12 @@ Array1D<Real,0,nvel> Phif_equilibrium_moments(const Array1D<Real,0,2>& fields,
   mEq( 2) = modifactor*coefAC*cs2*coefE[1];
   mEq( 3) = modifactor*coefAC*cs2*coefE[2];
 
-  mEq( 4) = modifactor*2.*cs4*trace_coefAD/2.;
-  mEq( 5) = modifactor*(6.*cs4*coefAD[0][0] - 2.*cs4*trace_coefAD)/2.;
-  mEq( 6) = modifactor*2.*cs4*(coefAD[1][1] - coefAD[2][2])/2.;
-  mEq( 7) = modifactor*cs4*(coefAD[0][1] + coefAD[1][0])/2.;
-  mEq( 8) = modifactor*cs4*(coefAD[1][2] + coefAD[2][1])/2.;
-  mEq( 9) = modifactor*cs4*(coefAD[0][2] + coefAD[2][0])/2.;
+  mEq( 4) = modifactor*2.*cs4*trace_coefAD;///2.;
+  mEq( 5) = modifactor*(6.*cs4*coefAD[0][0] - 2.*cs4*trace_coefAD);///2.;
+  mEq( 6) = modifactor*2.*cs4*(coefAD[1][1] - coefAD[2][2]);///2.;
+  mEq( 7) = modifactor*cs4*(coefAD[0][1] + coefAD[1][0]);///2.;
+  mEq( 8) = modifactor*cs4*(coefAD[1][2] + coefAD[2][1]);///2.;
+  mEq( 9) = modifactor*cs4*(coefAD[0][2] + coefAD[2][0]);///2.;
 
   mEq(10) = 0.; mEq(11) = 0.; mEq(12) = 0.; mEq(13) = 0.; mEq(14) = 0.; mEq(15) = 0.;
 
@@ -503,12 +518,12 @@ Array1D<Real,0,nvel> Phig_equilibrium_moments(const Array1D<Real,0,2>& fields,
   mEq( 2) = modifactor*coefAC*cs2*coefE[1];
   mEq( 3) = modifactor*coefAC*cs2*coefE[2];
 
-  mEq( 4) = modifactor*2.*cs4*trace_coefAD/2.;
-  mEq( 5) = modifactor*(6.*cs4*coefAD[0][0] - 2.*cs4*trace_coefAD)/2.;
-  mEq( 6) = modifactor*2.*cs4*(coefAD[1][1] - coefAD[2][2])/2.;
-  mEq( 7) = modifactor*cs4*(coefAD[0][1] + coefAD[1][0])/2.;
-  mEq( 8) = modifactor*cs4*(coefAD[1][2] + coefAD[2][1])/2.;
-  mEq( 9) = modifactor*cs4*(coefAD[0][2] + coefAD[2][0])/2.;
+  mEq( 4) = modifactor*2.*cs4*trace_coefAD;///2.;
+  mEq( 5) = modifactor*(6.*cs4*coefAD[0][0] - 2.*cs4*trace_coefAD);///2.;
+  mEq( 6) = modifactor*2.*cs4*(coefAD[1][1] - coefAD[2][2]);///2.;
+  mEq( 7) = modifactor*cs4*(coefAD[0][1] + coefAD[1][0]);//2.;
+  mEq( 8) = modifactor*cs4*(coefAD[1][2] + coefAD[2][1]);///2.;
+  mEq( 9) = modifactor*cs4*(coefAD[0][2] + coefAD[2][0]);///2.;
 
   mEq(10) = 0.; mEq(11) = 0.; mEq(12) = 0.; mEq(13) = 0.; mEq(14) = 0.; mEq(15) = 0.;
 
@@ -543,9 +558,21 @@ void collide(int x, int y, int z,
   mf = moments(x,y,z,f); // here is the modified moments since all program is based on modified distribution functions f,g;
   mg = moments(x,y,z,g);
 
+  if(x==print_grid[0] && y==print_grid[1] && z==print_grid[2]){
+    printf("moments before collision = \n");
+    for(int i=0; i<nvel; ++i) {
+      printf("mf(%d) = %f\t", i, mf(i));
+      printf("mg(%d) = %f\t", i, mg(i));
+    }
+    printf("\n");
+  }
+
   // mf_eq and mg_eq, moments of equilibirum distribution function
-  RealVect v_b = (fields(0)*uf + fields(1)*ug)/(fields(0) + fields(1)); // add the acceleration terms!!!!
-  //RealVect v_b = (fields(0)*RealVect(mf(1), mf(2), mf(3))/mf(0) + fields(1)*RealVect(mg(1), mg(2), mg(3))/mg(0))/(fields(0) + fields(1));
+  RealVect v_b = (fields(0)*uf + fields(1)*ug)/(fields(0) + fields(1));
+  // these two lines are equivalent;
+  //Print() << "v_b_h = " << v_b << '\n';
+  //Print() << "v_b_m = " << ((RealVect(mf(1), mf(2), mf(3)) + 0.5*mf(0)*af) + (RealVect(mg(1), mg(2), mg(3)) + 0.5*mg(0)*ag))/(mf(0) + mg(0)) << '\n';
+  
   mfEq = fequilibrium_moments(fields, v_b/*, noisef*/); // !!!!!!!!!!!!??????????!!!!!!!!!!!
   mgEq = gequilibrium_moments(fields, v_b/*, noiseg*/);
 
@@ -553,22 +580,33 @@ void collide(int x, int y, int z,
   mPhif = Phif_equilibrium_moments(fields, uf, af/*, noisef*/);
   mPhig = Phig_equilibrium_moments(fields, ug, ag/*, noiseg*/);
 
-  /*if(x==0 && y==0 && z==0) {
-    for(int i=0; i<nvel; ++i) {
-      printf("mfEq(%d) = %f\t", i, mfEq(i));
-      printf("mPhif(%d) = %f\t", i, mPhif(i));
-      printf("mgEq(%d) = %f\t", i, mgEq(i));
-      printf("mPhig(%d) = %f\t", i, mPhig(i));
+  if(x==print_grid[0] && y==print_grid[1] && z==print_grid[2]) {
+    printf("fluid f,g real velocity in collide() = \n");
+    for(int i=0; i<3; ++i) {
+      printf("uf(%d) = %.8f\t", i, uf[i]);
+      printf("ug(%d) = %.8f\t", i, ug[i]);
     }
     printf("\n");
-    for(int i=0; i<3; ++i) {
-      printf("ub(%d) = %f\t", i, v_b[i]);
-      printf("uf(%d) = %f\t", i, uf[i]);
-      printf("af(%d) = %f\t", i, af[i]);
-      printf("ug(%d) = %f\t", i, ug[i]);
-      printf("ag(%d) = %f\t", i, ag[i]);
+    printf("moments in collide() = \n");
+    for(int i=0; i<nvel; ++i) {
+      printf("mfEq(%d) = %.8f\t", i, mfEq(i));
+      printf("mPhif(%d) = %.8f\t", i, mPhif(i));
+      printf("mgEq(%d) = %.8f\t", i, mgEq(i));
+      printf("mPhig(%d) = %.8f\t", i, mPhig(i));
     }
-  }*/
+    printf("\ndensity in collide() = \n");
+    printf("h(%d) = %.8f\t", 0, h(x,y,z,0));
+    printf("h(%d) = %.8f\t", 1, h(x,y,z,1));
+    printf("\ncenter-of-mass velocity & acceleration in collide() = \n");
+    for(int i=0; i<3; ++i) {
+      printf("ub(%d) = %.8f\t", i, v_b[i]);
+      //printf("uf(%d) = %.8f\t", i, uf[i]);
+      printf("af(%d) = %.8f\t", i, af[i]);
+      //printf("ug(%d) = %.8f\t", i, ug[i]);
+      printf("ag(%d) = %.8f\t", i, ag[i]);
+    }
+    printf("\n");
+  }
   // thermal noise in moment space: fn(x,y,z,ncomp) & gn(x,y,z,ncomp);
 
   const Real tau_f_bar = tau_f*(1.+0.5/tau_f);
@@ -580,17 +618,26 @@ void collide(int x, int y, int z,
     mg(a) = mg(a) + Rag;  // ?????? 3/2 times larger?
   }
 
-  /*if(x==0 && y==0 && z==0) {
-    printf("\n");
+  if(x==print_grid[0] && y==print_grid[1] && z==print_grid[2]) {
+    printf("moments after collision = \n");
     for(int i=0; i<nvel; ++i) {
       printf("mf(%d) = %f\t", i, mf(i));
       printf("mg(%d) = %f\t", i, mg(i));
     }
     printf("\n");
-  }*/
+  }
 
   populations(x,y,z,f,mf);
   populations(x,y,z,g,mg);
+
+  if(x==print_grid[0] && y==print_grid[1] && z==print_grid[2]) {
+    printf("populations after collision = \n");
+    for(int i=0; i<nvel; ++i) {
+      printf("f(%d) = %.8f\t", i, f(x,y,z,i));
+      printf("g(%d) = %.8f\t", i, g(x,y,z,i));
+    }
+    printf("\n");
+  }
 
 }
 
@@ -605,6 +652,7 @@ void stream_push(int x, int y, int z,
     int zp = z + c[i][2];
     fNew(xp,yp,zp,i) = fOld(x,y,z,i);
     gNew(xp,yp,zp,i) = gOld(x,y,z,i);
+    //printf("streaming from (%d, %d, %d) to (%d, %d, %d) is %.8f for comp = %d\n", x, y, z, xp, yp, zp, fOld(x,y,z,i), i);
   }
 }
 
@@ -641,11 +689,14 @@ inline void LBM_timestep(const Geometry& geom,
 
   IntVect halo = IntVect(1); // need to push from first halo layer into domain
   //IntVect halo = IntVect(2);
+  //printf("ParallelFor loop start: = \n");
   ParallelFor(fold, halo, [=] AMREX_GPU_DEVICE(int nbx, int x, int y, int z) {
+    //printf("(%d,%d,%d)\t", x, y, z);
     collide_stream(x, y, z,
       fOld[nbx], gOld[nbx],
       fNew[nbx], gNew[nbx], h[nbx], fn[nbx], gn[nbx]);
   });
+  //printf("ParallelFor loop end\n");
   /*
   Swap (MultiFab &dst, MultiFab &src, int srccomp, int dstcomp, int numcomp, int nghost)
   Swap from src to dst including nghost ghost cells. 
@@ -680,8 +731,8 @@ inline void LBM_init_mixture(const Geometry& geom,
     const Array4<Real>& f = mf.array(mfi);
     const Array4<Real>& g = mg.array(mfi);
     ParallelForRNG(valid_box, [=] AMREX_GPU_DEVICE(int x, int y, int z, RandomEngine const& engine) {
-      const Real rho = 2.*C1;// + (x+y+z)/500.;// + C2;
-      const Real phi = 2.*C2;// - (x+y+z)/500.;//(C1-C2)+0.01*RandomNormal(0., 1., engine);
+      const Real rho = 2.*C1 + (x+y+z)/500.;// + C2;
+      const Real phi = 2.*C2 - (x+y+z)/500.;//(C1-C2)+0.01*RandomNormal(0., 1., engine);
       for (int i=0; i<nvel; i++) {
 	      f(x,y,z,i) = w[i]*rho;
 	      g(x,y,z,i) = w[i]*phi;

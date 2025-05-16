@@ -1,0 +1,5 @@
+This will show your installed WSL distributions.
+    wsl --list --verbose
+
+Locate your WSL virtual disk (ext4.vhdx):
+    Get-ChildItem "$env:USERPROFILE\AppData\Local\Packages" -Recurse -Filter "ext4.vhdx"

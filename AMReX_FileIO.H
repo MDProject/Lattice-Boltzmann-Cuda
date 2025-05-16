@@ -132,6 +132,26 @@ void PrintMultiFab(const MultiFab& mfab, int ngrow=-1){
     Print() << '\n';
 }
 
+AMREX_FORCE_INLINE
+void PrintMultiFabComp(const MultiFab& mfab, int compIdx=0, int ngrow=-1){
+    int ncomp = mfab.nComp();
+    auto const & mfab_ptr = mfab.arrays();
+
+    IntVect halo;
+    if(ngrow<0){
+        halo = IntVect(mfab.nGrow());
+    }else{
+        halo = IntVect(ngrow);
+    }
+    ParallelFor(mfab, halo, [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k) {
+        if(compIdx<ncomp){
+            printf("(%d,%d,%d,%d)-(%.8f)\t", i, j, k, compIdx, mfab_ptr[nbx](i,j,k,compIdx));
+        }
+        //Print() << '\n';
+    });
+    Print() << '\n';
+}
+
 // Variadic template to handle multiple parameters
 template <typename... Args>
 std::string format(const std::string& format_str, Args... args) {

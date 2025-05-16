@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
   int nprocs = amrex::ParallelDescriptor::NProcs();
   // ***********************************  Basic AMReX Params ***********************************************************
   // default grid parameters
-  int nx = 16; //40;
+  int nx = 6; //16; //40;
   int max_grid_size = nx/2;//4;
 
   
@@ -109,15 +109,15 @@ int main(int argc, char* argv[]) {
           // ***************************************************************************************************
   // ************************************************  MAIN PARAMS SETTING   ******************************************************
   // *******************************************  change for each job *******************************************************************
-  int step_continue = 400;//1300400;//3500400; // set to be 0 for noise=0 case; set to be the steps number of the checkpoint file when noise != 0;
+  int step_continue = 0;//1300400;//3500400; // set to be 0 for noise=0 case; set to be the steps number of the checkpoint file when noise != 0;
   bool continueFromNonFluct = true;//false; // true for first time switching on noise; setting the suffix of the chkpoint file to be loaded (true->0 or false->T);
                                     // set "false" only if hope to continue from chkpoint WITH noise case;
-  int nsteps = 400000;//100000;
+  int nsteps = 5;//400000;//100000;
   int Out_Step = noiseSwitch? step_continue: step_continue;// + nsteps/2;
-  int plot_int = 2000;
+  int plot_int = 1;//2000;
   int print_int = 100;
   int Out_Noise_Step = plot_int;
-  int plot_SF_window = 50000; // not affected by [plot_int]; out freq controlled by [Out_SF_Step]
+  int plot_SF_window = 100000; // not affected by [plot_int]; out freq controlled by [Out_SF_Step]
   int Out_SF_Step = 50;
   // default output parameters
   int plot_SF = noiseSwitch? plot_int: 0; // switch on writting Structure Factor for noise!=0 case only;
@@ -297,6 +297,9 @@ int main(int argc, char* argv[]) {
       LBM_init_mixture(geom, fold, gold, hydrovs, hydrovsbar, fnoisevs, gnoisevs, rho_eq, phi_eq, rhot_eq);
     }
   }
+
+  PrintMultiFabComp(fold, 3, 0);
+
   Print() << "check modified hydrodynamic quantities validity ...\n";
   //MultiFabNANCheck(hydrovsbar, true, 0);
   Print() << "check real hydrodynamic quantities validity ...\n";
@@ -323,9 +326,9 @@ int main(int argc, char* argv[]) {
   std::vector<Real> rho_mean_frames;  //  rho mean value for each frame
   std::vector<Real> rho_sigma_frames; //  rho standard deviation for each frame
   for (int step=step_continue+1; step <= step_continue+nsteps; ++step) {
-    if(step%print_int == 0){
+    /*if(step%print_int == 0){
       Print() << "LB step " << step << " info:\n";
-    } 
+    }*/
     //amrex::ParallelDescriptor::Barrier();
     LBM_timestep(geom, fold, gold, fnew, gnew, hydrovs, hydrovsbar, fnoisevs, gnoisevs, rho_eq, phi_eq, rhot_eq);
     //amrex::ParallelDescriptor::Barrier();
@@ -340,7 +343,10 @@ int main(int argc, char* argv[]) {
       WriteOutNoise(plot_file_root, step, fnoisevs, gnoisevs, geom, Ndigits);
     }
     if (plot_int > 0 && step%plot_int == 0){
-      Print() << "*****\tLB step output at step = " << step << "\t*******\n";
+      PrintMultiFabComp(fold, 3, 0);
+      Print() << "\t**************************************\t" << std::endl;
+      Print() << "\tLB step " << step << std::endl;
+      Print() << "\t**************************************\t" << std::endl;
       // ******************************* Running Process Monitor *******************************************
       if(is_mixture && nprocs == 1 && (!noiseSwitch)){
         Array2D<Real,0,3,0,2> density_info = PrintDensityFluctuation(hydrovs, var_names, step);
